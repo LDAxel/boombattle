@@ -1,0 +1,1829 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Бомбочки — мини-игра</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 0%, #1b2340 0%, #0a0d16 70%);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #e8eefc;
+    user-select: none;
+    padding: 20px 0;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 934px;
+  }
+
+  /* ---------- HUD ---------- */
+  .hud {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 10px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+  }
+
+  .hud-item { display: flex; align-items: center; gap: 8px; }
+
+  .hud .label {
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #8ea2c9;
+  }
+
+  .hud .value {
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #d7e6ff;
+  }
+
+  .hp-bar {
+    position: relative;
+    width: 170px;
+    height: 20px;
+    background: rgba(0, 0, 0, .45);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, .1);
+  }
+
+  .hp-fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #37d67a, #7ef0a8);
+    transition: width .15s linear, background .3s;
+  }
+
+  .hp-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+  }
+
+  .spacer { flex: 1; }
+
+  /* ---------- Основной ряд ---------- */
+  .main-row {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .stage {
+    position: relative;
+    width: 680px;
+    height: 600px;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 2px solid rgba(120, 180, 255, .25);
+    box-shadow: 0 0 50px rgba(60, 120, 255, .25), inset 0 0 60px rgba(0, 0, 0, .6);
+    flex-shrink: 0;
+  }
+
+  canvas { display: block; }
+
+  /* ---------- Инвентарь ---------- */
+  .inventory {
+    width: 240px;
+    height: 600px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    overflow-y: auto;
+  }
+
+  .inv-title {
+    font-size: 12px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #8ea2c9;
+    padding: 2px 4px 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, .07);
+    margin-bottom: 2px;
+  }
+
+  .inv-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background .15s, border-color .2s, transform .12s, box-shadow .2s;
+    overflow: hidden;
+  }
+
+  .inv-item:hover {
+    background: rgba(255, 255, 255, .07);
+    transform: translateX(2px);
+  }
+
+  .inv-item:active { transform: translateX(0) scale(.98); }
+
+  .inv-item.has {
+    background: rgba(255, 255, 255, .06);
+    border-color: rgba(255, 255, 255, .18);
+  }
+
+  .inv-item.active-effect {
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+
+  .inv-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 900;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, .35);
+    border: 2px solid;
+    transition: box-shadow .2s, background .2s;
+  }
+
+  .inv-item.has .inv-icon {
+    background: rgba(0, 0, 0, .55);
+  }
+
+  .inv-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .inv-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #d7e6ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .inv-key {
+    font-size: 11px;
+    color: #7d8fb3;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .inv-key .kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: rgba(0, 0, 0, .4);
+    border: 1px solid rgba(255, 255, 255, .18);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: #b9cbeb;
+  }
+
+  .inv-count {
+    font-size: 20px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #4a5670;
+    transition: color .2s, text-shadow .2s;
+    min-width: 26px;
+    text-align: right;
+  }
+
+  .inv-item.has .inv-count {
+    color: #fff;
+    text-shadow: 0 0 12px currentColor;
+  }
+
+  .inv-timer {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: rgba(0, 0, 0, .6);
+    padding: 1px 8px;
+    border-radius: 8px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .inv-item.active-effect .inv-timer { opacity: 1; }
+
+  .inv-item.shake {
+    animation: emptyShake .3s ease-out;
+  }
+  @keyframes emptyShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+
+  .inv-item.pulse {
+    animation: itemPulse .45s ease-out;
+  }
+  @keyframes itemPulse {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+
+  .inv-footer {
+    margin-top: auto;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #6f80a3;
+    padding: 10px 6px 2px;
+    border-top: 1px solid rgba(255, 255, 255, .07);
+    text-align: center;
+  }
+
+  /* ---------- Оверлеи ---------- */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+    background: rgba(6, 10, 20, .85);
+    backdrop-filter: blur(5px);
+    animation: fade .18s ease-out;
+    z-index: 10;
+  }
+
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  .overlay.hidden { display: none; }
+
+  .overlay h1 {
+    margin: 0 0 4px;
+    font-size: 42px;
+    letter-spacing: .04em;
+    background: linear-gradient(90deg, #ff8a3d, #ffd479, #4fc3f7);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 18px rgba(255, 140, 60, .35));
+  }
+
+  .overlay h2 { margin: 0 0 8px; font-size: 26px; }
+
+  .subtitle { color: #93a6c9; font-size: 14px; margin-bottom: 6px; }
+
+  /* ---------- Кнопки ---------- */
+  .btn {
+    min-width: 210px;
+    padding: 12px 26px;
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    color: #eaf3ff;
+    background: linear-gradient(180deg, rgba(79, 195, 247, .22), rgba(79, 195, 247, .08));
+    border: 1px solid rgba(79, 195, 247, .5);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform .12s, box-shadow .2s, background .2s;
+  }
+
+  .btn:hover {
+    background: linear-gradient(180deg, rgba(79, 195, 247, .38), rgba(79, 195, 247, .16));
+    box-shadow: 0 0 22px rgba(79, 195, 247, .4);
+    transform: translateY(-2px);
+  }
+
+  .btn:active { transform: translateY(0); }
+
+  .btn.small {
+    min-width: auto;
+    padding: 7px 14px;
+    font-size: 13px;
+    border-radius: 9px;
+  }
+
+  .btn:disabled { opacity: .35; cursor: default; transform: none; box-shadow: none; }
+
+  .btn.danger {
+    border-color: rgba(255, 107, 107, .55);
+    background: linear-gradient(180deg, rgba(255, 107, 107, .22), rgba(255, 107, 107, .07));
+  }
+
+  .btn.danger:hover {
+    background: linear-gradient(180deg, rgba(255, 107, 107, .38), rgba(255, 107, 107, .15));
+    box-shadow: 0 0 22px rgba(255, 107, 107, .4);
+  }
+
+  /* ---------- Настройки ---------- */
+  .setting {
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+  }
+
+  .setting label {
+    font-size: 13px;
+    color: #9fb3d6;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .setting label span { color: #4fc3f7; font-weight: 700; }
+
+  input[type=range] {
+    width: 100%;
+    accent-color: #4fc3f7;
+    cursor: pointer;
+  }
+
+  /* ---------- Статистика ---------- */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px 26px;
+    width: 340px;
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 14px;
+    font-size: 14px;
+  }
+
+  .stats-grid div:nth-child(odd) { color: #93a6c9; text-align: left; }
+  .stats-grid div:nth-child(even) {
+    color: #eaf3ff;
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .result-row {
+    display: flex;
+    gap: 26px;
+    margin: 4px 0 8px;
+  }
+
+  .result-box {
+    padding: 12px 22px;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 12px;
+    min-width: 120px;
+  }
+
+  .result-box .k { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #8ea2c9; }
+  .result-box .v { font-size: 22px; font-weight: 800; color: #ffd479; font-variant-numeric: tabular-nums; }
+
+  .hint { font-size: 12px; color: #6f80a3; margin-top: 4px; line-height: 1.6; }
+  .hint b { color: #b9cbeb; }
+
+  /* ---------- Легенда в меню ---------- */
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 20px;
+    margin-top: 6px;
+    padding: 12px 18px;
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid rgba(255, 255, 255, .08);
+    border-radius: 12px;
+    font-size: 12px;
+    color: #93a6c9;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+
+  .legend-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid;
+    flex-shrink: 0;
+  }
+
+  /* Кастомный скроллбар */
+  .inventory::-webkit-scrollbar { width: 6px; }
+  .inventory::-webkit-scrollbar-track { background: transparent; }
+  .inventory::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, .12);
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ======== ВЕРХНЯЯ ПАНЕЛЬ ======== -->
+  <div class="hud">
+    <div class="hud-item">
+      <span class="label">Прочность</span>
+      <div class="hp-bar">
+        <div class="hp-fill" id="hpFill"></div>
+        <span class="hp-text" id="hpText">100</span>
+      </div>
+    </div>
+
+    <div class="hud-item">
+      <span class="label">Время</span>
+      <span class="value" id="timeText">0.0 с</span>
+    </div>
+
+    <div class="hud-item">
+      <span class="label">Бомб</span>
+      <span class="value" id="bombText">0 / 30</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <button class="btn small" id="pauseBtn" disabled>Пауза</button>
+  </div>
+
+  <!-- ======== ИГРОВОЕ ПОЛЕ + ИНВЕНТАРЬ ======== -->
+  <div class="main-row">
+
+    <!-- ---- Поле ---- -->
+    <div class="stage">
+      <canvas id="game" width="680" height="600"></canvas>
+
+      <!-- Главное меню -->
+      <div class="overlay" id="overlayMenu">
+        <h1>БОМБОЧКИ</h1>
+        <div class="subtitle">Уворачивайся от бомб как можно дольше!</div>
+        <button class="btn" id="btnStart">Старт</button>
+        <button class="btn" id="btnSettings">Настройки</button>
+        <button class="btn" id="btnStats">Статистика</button>
+
+        <div class="legend">
+          <div class="legend-item">
+            <div class="legend-dot" style="border-color:#37d67a; background:rgba(55,214,122,.2)"></div>
+            <span><b style="color:#7ef0a8">+</b> — лечение <b>H</b></span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="border-color:#ff6b35; background:rgba(255,107,53,.2)"></div>
+            <span><b style="color:#ff8a5b">✕</b> — взрыв бомб <b>Пробел</b></span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="border-color:#4fc3f7; background:rgba(79,195,247,.2)"></div>
+            <span><b style="color:#7dd3fc">❄</b> — заморозка <b>G</b></span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-dot" style="border-color:#ffd479; background:rgba(255,212,121,.2)"></div>
+            <span><b style="color:#ffe9b0">🛡</b> — защита <b>J</b></span>
+          </div>
+        </div>
+
+        <div class="hint">
+          Движение: <b>← ↑ → ↓</b> или <b>WASD</b> &nbsp;·&nbsp;
+          Активация айтемов: <b>H</b>, <b>Пробел</b>, <b>G</b>, <b>J</b> &nbsp;·&nbsp;
+          <b>Esc</b> — пауза<br>
+          Айтемы складываются в инвентарь справа. Клик по ячейке тоже активирует.
+        </div>
+      </div>
+
+      <!-- Настройки -->
+      <div class="overlay hidden" id="overlaySettings">
+        <h2>Настройки</h2>
+
+        <div class="setting">
+          <label>Скорость игрока <span id="valPlayerSpeed">4</span></label>
+          <input type="range" id="setPlayerSpeed" min="1.5" max="8" step="0.5">
+        </div>
+
+        <div class="setting">
+          <label>Скорость бомб <span id="valBombSpeed">2</span></label>
+          <input type="range" id="setBombSpeed" min="0.5" max="5" step="0.1">
+        </div>
+
+        <div class="setting">
+          <label>Урон от бомбы <span id="valDamage">12</span></label>
+          <input type="range" id="setDamage" min="4" max="40" step="1">
+        </div>
+
+        <button class="btn" id="btnSettingsBack">Назад</button>
+      </div>
+
+      <!-- Статистика -->
+      <div class="overlay hidden" id="overlayStats">
+        <h2>Статистика</h2>
+        <div class="stats-grid" id="statsGrid"></div>
+        <button class="btn danger" id="btnStatsReset">Сбросить статистику</button>
+        <button class="btn" id="btnStatsBack">Назад</button>
+      </div>
+
+      <!-- Пауза -->
+      <div class="overlay hidden" id="overlayPause">
+        <h2>Пауза</h2>
+        <button class="btn" id="btnResume">Продолжить</button>
+        <button class="btn danger" id="btnPauseExit">В меню</button>
+      </div>
+
+      <!-- Конец игры -->
+      <div class="overlay hidden" id="overlayGameover">
+        <h1 style="font-size:34px">💥 ВЗРЫВ!</h1>
+        <div class="subtitle">Твоя прочность закончилась</div>
+
+        <div class="result-row">
+          <div class="result-box">
+            <div class="k">Продержался</div>
+            <div class="v" id="resTime">0.0 с</div>
+          </div>
+          <div class="result-box">
+            <div class="k">Бомб на поле</div>
+            <div class="v" id="resBombs">0</div>
+          </div>
+        </div>
+
+        <button class="btn" id="btnRestart">Играть снова</button>
+        <button class="btn" id="btnGameoverMenu">В меню</button>
+      </div>
+    </div>
+
+    <!-- ---- Инвентарь ---- -->
+    <aside class="inventory">
+      <div class="inv-title">Инвентарь</div>
+
+      <div class="inv-item" data-type="heal">
+        <div class="inv-icon" style="color:#37d67a; border-color:#37d67a">+</div>
+        <div class="inv-info">
+          <div class="inv-name">Лечение</div>
+          <div class="inv-key">клавиша <span class="kbd">H</span></div>
+        </div>
+        <div class="inv-count">0</div>
+        <div class="inv-timer"></div>
+      </div>
+
+      <div class="inv-item" data-type="destroy">
+        <div class="inv-icon" style="color:#ff6b35; border-color:#ff6b35">✕</div>
+        <div class="inv-info">
+          <div class="inv-name">Взрыв бомб</div>
+          <div class="inv-key">клавиша <span class="kbd">Пробел</span></div>
+        </div>
+        <div class="inv-count">0</div>
+        <div class="inv-timer"></div>
+      </div>
+
+      <div class="inv-item" data-type="slow">
+        <div class="inv-icon" style="color:#4fc3f7; border-color:#4fc3f7">❄</div>
+        <div class="inv-info">
+          <div class="inv-name">Заморозка</div>
+          <div class="inv-key">клавиша <span class="kbd">G</span></div>
+        </div>
+        <div class="inv-count">0</div>
+        <div class="inv-timer"></div>
+      </div>
+
+      <div class="inv-item" data-type="shield">
+        <div class="inv-icon" style="color:#ffd479; border-color:#ffd479">🛡</div>
+        <div class="inv-info">
+          <div class="inv-name">Защита</div>
+          <div class="inv-key">клавиша <span class="kbd">J</span></div>
+        </div>
+        <div class="inv-count">0</div>
+        <div class="inv-timer"></div>
+      </div>
+
+      <div class="inv-footer">
+        Собирай айтемы на поле<br>
+        и активируй их, когда нужно
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+     КОНСТАНТЫ
+     ========================================================= */
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;   // 680
+  const H = canvas.height;  // 600
+
+  const PLAYER_R      = 12;
+  const PLAYER_MAX_HP = 100;
+  const BOMB_R        = 16;
+  const BOMB_MAX_R    = 54;
+  const INVULN_TIME   = 1.2;
+  const PAIR_COOLDOWN = 0.28;
+
+  // Лимиты бомб
+  const MAX_BOMBS = 30;   // максимум бомб на поле
+  const MIN_BOMBS = 2;    // гарантированный минимум
+
+  // Насколько пикселей игрок может «войти» в бомбу без урона и отталкивания
+  const CONTACT_SLOP = 4;
+
+  // ---------- Айтемы ----------
+  const ITEM_R              = 14;
+  const ITEM_SPAWN_FIRST    = 3.5;
+  const ITEM_SPAWN_INTERVAL = 6;
+  const ITEM_LIFETIME       = 12;
+  const ITEM_MAX_ON_FIELD   = 4;
+
+  const HEAL_AMOUNT     = 30;
+  const DESTROY_PERCENT = 0.5;
+  const SLOW_DURATION   = 5;
+  const SLOW_FACTOR     = 0.35;
+  const SHIELD_DURATION = 5;
+
+  // Веса выпадения типов айтемов.
+  // Чем выше вес — тем чаще тип появляется.
+  // «Взрыв бомб» (destroy) специально сделан намного чаще остальных.
+  const ITEM_WEIGHTS = {
+    heal:    2,
+    destroy: 6,   // ← появляется примерно в 2 раза чаще остальных
+    slow:    2,
+    shield:  2
+  };
+
+  const ITEM_TYPES = {
+    heal:    { color: '#37d67a', glow: 'rgba(55, 214, 122, 0.55)' },
+    destroy: { color: '#ff6b35', glow: 'rgba(255, 107, 53, 0.55)' },
+    slow:    { color: '#4fc3f7', glow: 'rgba(79, 195, 247, 0.55)' },
+    shield:  { color: '#ffd479', glow: 'rgba(255, 212, 121, 0.55)' }
+  };
+
+  const LS_SETTINGS = 'bombGame.settings.v1';
+  const LS_STATS    = 'bombGame.stats.v1';
+
+  const DEFAULT_SETTINGS = { playerSpeed: 4, bombSpeed: 2, damage: 12 };
+  const DEFAULT_STATS    = {
+    games: 0, bestTime: 0, totalTime: 0,
+    maxBombs: 2, bombsSpawned: 0, itemsCollected: 0, bombsDestroyed: 0
+  };
+
+  /* =========================================================
+     ХРАНИЛИЩЕ
+     ========================================================= */
+  function load(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || {}; }
+    catch (e) { return {}; }
+  }
+  function save(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+
+  let settings = Object.assign({}, DEFAULT_SETTINGS, load(LS_SETTINGS));
+  let stats    = Object.assign({}, DEFAULT_STATS,    load(LS_STATS));
+
+  /* =========================================================
+     СОСТОЯНИЕ
+     ========================================================= */
+  let state = 'menu';
+  let player = null;
+  let bombs = [];
+  let items = [];
+  let particles = [];
+  let elapsed = 0;
+  let invuln = 0;
+  let hitFlash = 0;
+  let destroyFlash = 0;
+  let sessionMaxBombs = 2;
+  let lastTs = 0;
+  let rafId = null;
+
+  let charges = { heal: 0, destroy: 0, slow: 0, shield: 0 };
+  let sessionItemsCollected = 0;
+  let sessionBombsDestroyed = 0;
+
+  let slowTimer = 0;
+  let shieldTimer = 0;
+
+  let itemSpawnTimer = ITEM_SPAWN_FIRST;
+
+  const keys = Object.create(null);
+
+  /* =========================================================
+     DOM
+     ========================================================= */
+  const hpFill     = document.getElementById('hpFill');
+  const hpText     = document.getElementById('hpText');
+  const timeText   = document.getElementById('timeText');
+  const bombText   = document.getElementById('bombText');
+  const pauseBtn   = document.getElementById('pauseBtn');
+
+  const invEls = {};
+  document.querySelectorAll('.inv-item').forEach(function (el) {
+    const type = el.dataset.type;
+    invEls[type] = {
+      root: el,
+      count: el.querySelector('.inv-count'),
+      timer: el.querySelector('.inv-timer')
+    };
+  });
+
+  const overlays = {
+    menu:     document.getElementById('overlayMenu'),
+    settings: document.getElementById('overlaySettings'),
+    stats:    document.getElementById('overlayStats'),
+    pause:    document.getElementById('overlayPause'),
+    gameover: document.getElementById('overlayGameover')
+  };
+
+  function showOverlay(name) {
+    for (const key in overlays) {
+      overlays[key].classList.toggle('hidden', key !== name);
+    }
+  }
+
+  /* =========================================================
+     УТИЛИТЫ
+     ========================================================= */
+  function formatTime(t) {
+    const m = Math.floor(t / 60);
+    const s = t - m * 60;
+    return m > 0
+      ? m + ':' + s.toFixed(1).padStart(4, '0')
+      : s.toFixed(1) + ' с';
+  }
+
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  // Взвешенный выбор типа айтема
+  let _weightSum = 0;
+  for (const t in ITEM_WEIGHTS) _weightSum += ITEM_WEIGHTS[t];
+
+  function pickItemType() {
+    let r = Math.random() * _weightSum;
+    for (const type in ITEM_WEIGHTS) {
+      r -= ITEM_WEIGHTS[type];
+      if (r <= 0) return type;
+    }
+    return 'heal';
+  }
+
+  /* =========================================================
+     СОЗДАНИЕ ОБЪЕКТОВ
+     ========================================================= */
+  function isFreeSpot(x, y, r) {
+    if (player) {
+      if (Math.hypot(x - player.x, y - player.y) < r + player.r + 70) return false;
+    }
+    for (const b of bombs) {
+      if (Math.hypot(x - b.x, y - b.y) < r + b.r + 12) return false;
+    }
+    return true;
+  }
+
+  function isItemSpotFree(x, y, r) {
+    if (player) {
+      if (Math.hypot(x - player.x, y - player.y) < r + player.r + 90) return false;
+    }
+    for (const b of bombs) {
+      if (Math.hypot(x - b.x, y - b.y) < r + b.r + 20) return false;
+    }
+    for (const it of items) {
+      if (Math.hypot(x - it.x, y - it.y) < r + it.r + 40) return false;
+    }
+    return true;
+  }
+
+  function createBomb() {
+    const r = BOMB_R;
+    let x = 0, y = 0;
+    for (let i = 0; i < 120; i++) {
+      x = rand(r + 4, W - r - 4);
+      y = rand(r + 4, H - r - 4);
+      if (isFreeSpot(x, y, r)) break;
+    }
+    const angle = Math.random() * Math.PI * 2;
+    const speed = settings.bombSpeed * rand(0.75, 1.25);
+    return {
+      x, y, r,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      rot: Math.random() * Math.PI * 2,
+      cd: PAIR_COOLDOWN
+    };
+  }
+
+  function createItem() {
+    const type = pickItemType();
+    const r = ITEM_R;
+    let x = 0, y = 0;
+    for (let i = 0; i < 100; i++) {
+      x = rand(r + 24, W - r - 24);
+      y = rand(r + 24, H - r - 24);
+      if (isItemSpotFree(x, y, r)) break;
+    }
+    return {
+      x, y, r, type,
+      life: ITEM_LIFETIME,
+      maxLife: ITEM_LIFETIME,
+      bob: Math.random() * Math.PI * 2,
+      born: 0
+    };
+  }
+
+  /* =========================================================
+     ЧАСТИЦЫ
+     ========================================================= */
+  function burst(x, y, color, count, power) {
+    power = power || 1;
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = rand(40, 220) * power;
+      particles.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: rand(0.35, 0.9),
+        maxLife: 0.9,
+        size: rand(1.5, 4.5) * power,
+        color
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.96;
+      p.vy *= 0.96;
+      p.life -= dt;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  /* =========================================================
+     СТАРТ ИГРЫ
+     ========================================================= */
+  function startGame() {
+    player = { x: W / 2, y: H / 2, r: PLAYER_R, hp: PLAYER_MAX_HP };
+
+    bombs = [];
+    items = [];
+    particles = [];
+    elapsed = 0;
+    invuln = 0;
+    hitFlash = 0;
+    destroyFlash = 0;
+    sessionMaxBombs = 2;
+    sessionItemsCollected = 0;
+    sessionBombsDestroyed = 0;
+
+    charges = { heal: 0, destroy: 0, slow: 0, shield: 0 };
+
+    slowTimer = 0;
+    shieldTimer = 0;
+    itemSpawnTimer = ITEM_SPAWN_FIRST;
+
+    for (let i = 0; i < 2; i++) bombs.push(createBomb());
+
+    state = 'playing';
+    lastTs = 0;
+    pauseBtn.disabled = false;
+    pauseBtn.textContent = 'Пауза';
+
+    showOverlay(null);
+    updateHud();
+    renderInventory();
+  }
+
+  /* =========================================================
+     ИГРОК
+     ========================================================= */
+  function movePlayer(k) {
+    let mx = 0, my = 0;
+    if (keys['ArrowLeft']  || keys['KeyA']) mx -= 1;
+    if (keys['ArrowRight'] || keys['KeyD']) mx += 1;
+    if (keys['ArrowUp']    || keys['KeyW']) my -= 1;
+    if (keys['ArrowDown']  || keys['KeyS']) my += 1;
+
+    if (mx || my) {
+      const len = Math.hypot(mx, my);
+      mx /= len;
+      my /= len;
+      player.x += mx * settings.playerSpeed * k;
+      player.y += my * settings.playerSpeed * k;
+    }
+
+    player.x = Math.min(W - player.r, Math.max(player.r, player.x));
+    player.y = Math.min(H - player.r, Math.max(player.r, player.y));
+  }
+
+  /* =========================================================
+     БОМБЫ
+     ========================================================= */
+  function moveBombs(k, dt) {
+    const mult = slowTimer > 0 ? SLOW_FACTOR : 1;
+    for (const b of bombs) {
+      b.x += b.vx * k * mult;
+      b.y += b.vy * k * mult;
+      b.rot += dt * 2.4 * mult;
+      b.cd = Math.max(0, b.cd - dt);
+
+      if (b.x - b.r < 0) { b.x = b.r;     b.vx = Math.abs(b.vx); }
+      if (b.x + b.r > W) { b.x = W - b.r; b.vx = -Math.abs(b.vx); }
+      if (b.y - b.r < 0) { b.y = b.r;     b.vy = Math.abs(b.vy); }
+      if (b.y + b.r > H) { b.y = H - b.r; b.vy = -Math.abs(b.vy); }
+    }
+  }
+
+  function collideBombs() {
+    for (let i = 0; i < bombs.length; i++) {
+      const a = bombs[i];
+      if (!a) continue;
+
+      for (let j = i + 1; j < bombs.length; j++) {
+        const b = bombs[j];
+        if (!b) continue;
+
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        if (d >= a.r + b.r) continue;
+        if (d === 0) d = 0.001;
+
+        const nx = dx / d;
+        const ny = dy / d;
+        const overlap = (a.r + b.r) - d;
+
+        a.x -= nx * overlap / 2;
+        a.y -= ny * overlap / 2;
+        b.x += nx * overlap / 2;
+        b.y += ny * overlap / 2;
+
+        const p1 = a.vx * nx + a.vy * ny;
+        const p2 = b.vx * nx + b.vy * ny;
+
+        if (p1 - p2 > 0) {
+          a.vx += (p2 - p1) * nx;
+          a.vy += (p2 - p1) * ny;
+          b.vx += (p1 - p2) * nx;
+          b.vy += (p1 - p2) * ny;
+        }
+
+        if (a.cd <= 0 && b.cd <= 0) {
+          a.cd = PAIR_COOLDOWN;
+          b.cd = PAIR_COOLDOWN;
+
+          // Не спавним новую бомбу, если достигнут лимит
+          if (Math.random() < 0.5) {
+            growBomb(Math.random() < 0.5 ? a : b);
+          } else {
+            if (bombs.length < MAX_BOMBS) {
+              spawnBomb();
+            } else {
+              // Достигнут максимум — вместо спавна растим одну из пары
+              growBomb(Math.random() < 0.5 ? a : b);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function growBomb(b) {
+    if (b.r >= BOMB_MAX_R) {
+      if (bombs.length < MAX_BOMBS) spawnBomb();
+      return;
+    }
+    b.r = Math.min(BOMB_MAX_R, b.r + rand(3, 6));
+    burst(b.x, b.y, '#ffb84d', 10, 0.7);
+    b.x = Math.min(W - b.r, Math.max(b.r, b.x));
+    b.y = Math.min(H - b.r, Math.max(b.r, b.y));
+  }
+
+  function spawnBomb() {
+    if (bombs.length >= MAX_BOMBS) return;
+    const nb = createBomb();
+    nb.cd = PAIR_COOLDOWN * 2;
+    bombs.push(nb);
+    sessionMaxBombs = Math.max(sessionMaxBombs, bombs.length);
+    burst(nb.x, nb.y, '#4fc3f7', 12, 0.8);
+  }
+
+  function ensureMinimumBombs() {
+    while (bombs.length < MIN_BOMBS) {
+      const nb = createBomb();
+      nb.cd = PAIR_COOLDOWN * 2;
+      bombs.push(nb);
+      burst(nb.x, nb.y, '#4fc3f7', 10, 0.7);
+    }
+  }
+
+  /* =========================================================
+     АЙТЕМЫ
+     ========================================================= */
+  function spawnItem() {
+    if (items.length >= ITEM_MAX_ON_FIELD) return;
+    const it = createItem();
+    items.push(it);
+    burst(it.x, it.y, ITEM_TYPES[it.type].color, 12, 0.6);
+  }
+
+  function updateItems(dt) {
+    itemSpawnTimer -= dt;
+    if (itemSpawnTimer <= 0) {
+      spawnItem();
+      itemSpawnTimer = ITEM_SPAWN_INTERVAL;
+    }
+
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      it.life -= dt;
+      it.bob += dt * 3;
+      it.born = Math.min(1, it.born + dt * 3);
+
+      if (it.life <= 0) {
+        burst(it.x, it.y, ITEM_TYPES[it.type].color, 8, 0.5);
+        items.splice(i, 1);
+      }
+    }
+
+    if (!player) return;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      const d = Math.hypot(it.x - player.x, it.y - player.y);
+      if (d < it.r + player.r && it.born > 0.4) {
+        pickUpItem(it);
+        items.splice(i, 1);
+      }
+    }
+  }
+
+  function pickUpItem(it) {
+    charges[it.type] += 1;
+    sessionItemsCollected += 1;
+
+    burst(it.x, it.y, ITEM_TYPES[it.type].color, 22, 1.1);
+    pulseInv(it.type);
+
+    updateHud();
+    renderInventory();
+  }
+
+  /* =========================================================
+     АКТИВАЦИЯ ЗАРЯДОВ
+     ========================================================= */
+  function useCharge(type) {
+    if (state !== 'playing') return false;
+
+    if (type === 'heal' && player && player.hp >= PLAYER_MAX_HP) {
+      shakeInv(type);
+      return false;
+    }
+
+    if (charges[type] <= 0) {
+      shakeInv(type);
+      return false;
+    }
+
+    charges[type] -= 1;
+
+    switch (type) {
+      case 'heal':
+        player.hp = Math.min(PLAYER_MAX_HP, player.hp + HEAL_AMOUNT);
+        burst(player.x, player.y, '#37d67a', 22, 1.1);
+        break;
+
+      case 'destroy': {
+        const removable = Math.max(0, bombs.length - MIN_BOMBS);
+        const toRemove = Math.min(
+          removable,
+          Math.round(bombs.length * DESTROY_PERCENT)
+        );
+
+        let destroyed = 0;
+        for (let i = 0; i < toRemove; i++) {
+          const idx = Math.floor(Math.random() * bombs.length);
+          const b = bombs.splice(idx, 1)[0];
+          if (b) {
+            burst(b.x, b.y, '#ff6b35', 18, 1.2);
+            burst(b.x, b.y, '#ffd479', 10, 0.9);
+            destroyed++;
+          }
+        }
+        sessionBombsDestroyed += destroyed;
+        destroyFlash = 0.55;
+        ensureMinimumBombs();
+        break;
+      }
+
+      case 'slow':
+        slowTimer = Math.max(slowTimer, SLOW_DURATION);
+        burst(player.x, player.y, '#4fc3f7', 24, 1.1);
+        break;
+
+      case 'shield':
+        shieldTimer = Math.max(shieldTimer, SHIELD_DURATION);
+        burst(player.x, player.y, '#ffd479', 24, 1.1);
+        break;
+    }
+
+    updateHud();
+    renderInventory();
+    return true;
+  }
+
+  /* =========================================================
+     ОТКЛИК ИНВЕНТАРЯ
+     ========================================================= */
+  function pulseInv(type) {
+    const el = invEls[type];
+    if (!el) return;
+    el.root.classList.remove('pulse');
+    void el.root.offsetWidth;
+    el.root.classList.add('pulse');
+  }
+
+  function shakeInv(type) {
+    const el = invEls[type];
+    if (!el) return;
+    el.root.classList.remove('shake');
+    void el.root.offsetWidth;
+    el.root.classList.add('shake');
+  }
+
+  /* =========================================================
+     СТОЛКНОВЕНИЕ С БОМБАМИ
+     ---------------------------------------------------------
+     CONTACT_SLOP пикселей игрок может «войти» внутрь бомбы
+     без урона и без отталкивания. Реальная коллизия (и урон)
+     начинается только при более глубоком проникновении.
+     ========================================================= */
+  function collidePlayer() {
+    if (!player || state !== 'playing') return;
+
+    for (const b of bombs) {
+      const dx = player.x - b.x;
+      const dy = player.y - b.y;
+      let d = Math.hypot(dx, dy);
+      if (d === 0) d = 0.001;
+
+      // Полная дистанция касания кругов
+      const touchDist = b.r + player.r;
+
+      // Начинаем реагировать только после проникновения на CONTACT_SLOP пикселей
+      const contactDist = touchDist - CONTACT_SLOP;
+
+      if (d >= contactDist) continue;
+
+      const nx = dx / d;
+      const ny = dy / d;
+
+      // Бомба отлетает от игрока
+      const dot = b.vx * nx + b.vy * ny;
+      if (dot > 0) {
+        b.vx -= 2 * dot * nx;
+        b.vy -= 2 * dot * ny;
+      }
+
+      // Отталкиваем игрока до «полной» границы касания (touchDist),
+      // то есть он мгновенно выходит из зоны slop.
+      const push = touchDist - d;
+      player.x += nx * push;
+      player.y += ny * push;
+      player.x = Math.min(W - player.r, Math.max(player.r, player.x));
+      player.y = Math.min(H - player.r, Math.max(player.r, player.y));
+
+      const protectedByShield = shieldTimer > 0;
+      if (invuln <= 0 && !protectedByShield) {
+        const dmg = Math.max(1, Math.round(settings.damage * (b.r / BOMB_R)));
+        player.hp -= dmg;
+        invuln = INVULN_TIME;
+        hitFlash = 0.45;
+
+        burst(player.x, player.y, '#ff7b72', 16, 1);
+
+        if (player.hp <= 0) {
+          player.hp = 0;
+          gameOver();
+          return;
+        }
+      } else if (protectedByShield) {
+        burst(player.x, player.y, '#ffd479', 5, 0.5);
+      }
+    }
+  }
+
+  /* =========================================================
+     КОНЕЦ ИГРЫ
+     ========================================================= */
+  function gameOver() {
+    state = 'gameover';
+    pauseBtn.disabled = true;
+
+    burst(player.x, player.y, '#ffd479', 40, 1.6);
+    burst(player.x, player.y, '#ff6b35', 34, 1.3);
+    burst(player.x, player.y, '#ffffff', 18, 1.9);
+    hitFlash = 0.9;
+
+    stats.games += 1;
+    stats.totalTime += elapsed;
+    if (elapsed > stats.bestTime) stats.bestTime = elapsed;
+    stats.maxBombs = Math.max(stats.maxBombs, sessionMaxBombs);
+    stats.bombsSpawned += Math.max(0, sessionMaxBombs - 2);
+    stats.itemsCollected = (stats.itemsCollected || 0) + sessionItemsCollected;
+    stats.bombsDestroyed = (stats.bombsDestroyed || 0) + sessionBombsDestroyed;
+    save(LS_STATS, stats);
+
+    player = null;
+
+    document.getElementById('resTime').textContent  = formatTime(elapsed);
+    document.getElementById('resBombs').textContent = sessionMaxBombs;
+
+    setTimeout(() => {
+      if (state === 'gameover') showOverlay('gameover');
+    }, 750);
+  }
+
+  /* =========================================================
+     ОБНОВЛЕНИЕ
+     ========================================================= */
+  function update(dt) {
+    const k = dt * 60;
+
+    if (state === 'playing') {
+      elapsed += dt;
+      invuln = Math.max(0, invuln - dt);
+      hitFlash = Math.max(0, hitFlash - dt);
+      destroyFlash = Math.max(0, destroyFlash - dt * 1.8);
+      slowTimer = Math.max(0, slowTimer - dt);
+      shieldTimer = Math.max(0, shieldTimer - dt);
+
+      movePlayer(k);
+      moveBombs(k, dt);
+      ensureMinimumBombs();
+      collideBombs();
+      collidePlayer();
+      updateItems(dt);
+
+      if (state === 'playing') updateHud();
+      renderInventory();
+    } else {
+      hitFlash = Math.max(0, hitFlash - dt * 2);
+      destroyFlash = Math.max(0, destroyFlash - dt * 2);
+    }
+
+    updateParticles(dt);
+  }
+
+  /* =========================================================
+     ОТРИСОВКА
+     ========================================================= */
+  function render() {
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#111c31');
+    bg.addColorStop(1, '#080d18');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = 'rgba(90, 150, 255, 0.07)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x <= W; x += 40) {
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, H);
+    }
+    for (let y = 0; y <= H; y += 40) {
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(W, y + 0.5);
+    }
+    ctx.stroke();
+
+    for (const it of items) drawItem(it);
+    for (const b of bombs) drawBomb(b);
+    if (player && (state === 'playing' || state === 'paused')) drawPlayer();
+
+    for (const p of particles) {
+      const alpha = Math.max(0, p.life / p.maxLife);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if (hitFlash > 0) {
+      ctx.fillStyle = 'rgba(255, 60, 60, ' + (hitFlash * 0.5) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    if (destroyFlash > 0) {
+      ctx.fillStyle = 'rgba(255, 130, 60, ' + (destroyFlash * 0.35) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    if (slowTimer > 0 && state === 'playing') {
+      ctx.fillStyle = 'rgba(79, 195, 247, ' + (0.06 * Math.min(1, slowTimer)) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  function drawBomb(b) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+
+    const glow = ctx.createRadialGradient(0, 0, b.r * 0.5, 0, 0, b.r + 12);
+    glow.addColorStop(0, 'rgba(255, 100, 60, 0.20)');
+    glow.addColorStop(1, 'rgba(255, 100, 60, 0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, b.r + 12, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    ctx.rotate(b.rot);
+
+    const body = ctx.createRadialGradient(
+      -b.r * 0.4, -b.r * 0.4, b.r * 0.1, 0, 0, b.r
+    );
+    body.addColorStop(0, '#5c6479');
+    body.addColorStop(0.55, '#2a3040');
+    body.addColorStop(1, '#0e1119');
+
+    ctx.beginPath();
+    ctx.arc(0, 0, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    ctx.lineWidth = Math.max(1.5, b.r * 0.11);
+    ctx.strokeStyle = 'rgba(255, 140, 70, 0.85)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.ellipse(-b.r * 0.32, -b.r * 0.36, b.r * 0.26, b.r * 0.17, -0.6, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.fill();
+
+    const fw = Math.max(2, b.r * 0.15);
+    ctx.beginPath();
+    ctx.moveTo(0, -b.r * 0.92);
+    ctx.quadraticCurveTo(b.r * 0.55, -b.r * 1.6, b.r * 0.95, -b.r * 1.25);
+    ctx.strokeStyle = '#c9a36b';
+    ctx.lineWidth = fw;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    ctx.restore();
+
+    const lx = b.r * 0.95;
+    const ly = -b.r * 1.25;
+    const cos = Math.cos(b.rot), sin = Math.sin(b.rot);
+    const sx = b.x + lx * cos - ly * sin;
+    const sy = b.y + lx * sin + ly * cos;
+
+    const flick = 0.6 + Math.random() * 0.8;
+    const sparkR = Math.max(2.5, b.r * 0.22) * flick;
+
+    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, sparkR * 3);
+    sg.addColorStop(0, 'rgba(255, 240, 180, 0.95)');
+    sg.addColorStop(0.35, 'rgba(255, 170, 60, 0.7)');
+    sg.addColorStop(1, 'rgba(255, 120, 40, 0)');
+    ctx.beginPath();
+    ctx.arc(sx, sy, sparkR * 3, 0, Math.PI * 2);
+    ctx.fillStyle = sg;
+    ctx.fill();
+  }
+
+  function drawItem(it) {
+    const cfg = ITEM_TYPES[it.type];
+
+    const lifeRatio = it.life / it.maxLife;
+    const fade = lifeRatio < 0.28
+      ? 0.35 + 0.65 * Math.abs(Math.sin(it.life * 8))
+      : 1;
+
+    const bobY = Math.sin(it.bob) * 3;
+    const pulse = 1 + Math.sin(it.bob * 2) * 0.08;
+    const r = it.r * pulse * it.born;
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(it.x, it.y + bobY);
+
+    const glow = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 2.4);
+    glow.addColorStop(0, cfg.glow);
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(10, 14, 24, 0.88)';
+    ctx.fill();
+
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = cfg.color;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.rotate(it.bob * 0.5);
+    ctx.beginPath();
+    ctx.arc(0, 0, r + 4, 0, Math.PI * 2);
+    ctx.setLineDash([3, 5]);
+    ctx.globalAlpha = fade * 0.6;
+    ctx.strokeStyle = cfg.color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = cfg.color;
+    ctx.fillStyle = cfg.color;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (it.type === 'heal') {
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, 0);
+      ctx.lineTo(r * 0.5, 0);
+      ctx.moveTo(0, -r * 0.5);
+      ctx.lineTo(0, r * 0.5);
+      ctx.stroke();
+    } else if (it.type === 'destroy') {
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.45, -r * 0.45);
+      ctx.lineTo(r * 0.45, r * 0.45);
+      ctx.moveTo(r * 0.45, -r * 0.45);
+      ctx.lineTo(-r * 0.45, r * 0.45);
+      ctx.stroke();
+    } else if (it.type === 'slow') {
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r * 0.55, Math.sin(a) * r * 0.55);
+        ctx.lineTo(-Math.cos(a) * r * 0.55, -Math.sin(a) * r * 0.55);
+        ctx.stroke();
+      }
+    } else if (it.type === 'shield') {
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.55);
+      ctx.lineTo(r * 0.5, -r * 0.35);
+      ctx.lineTo(r * 0.5, r * 0.1);
+      ctx.quadraticCurveTo(r * 0.5, r * 0.55, 0, r * 0.65);
+      ctx.quadraticCurveTo(-r * 0.5, r * 0.55, -r * 0.5, r * 0.1);
+      ctx.lineTo(-r * 0.5, -r * 0.35);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  function drawPlayer() {
+    const blink = invuln > 0 && shieldTimer <= 0 && Math.floor(invuln * 12) % 2 === 0;
+
+    ctx.save();
+    ctx.globalAlpha = blink ? 0.35 : 1;
+
+    const glow = ctx.createRadialGradient(
+      player.x, player.y, player.r * 0.4,
+      player.x, player.y, player.r * 2.4
+    );
+    glow.addColorStop(0, 'rgba(79, 195, 247, 0.35)');
+    glow.addColorStop(1, 'rgba(79, 195, 247, 0)');
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r * 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+
+    const grad = ctx.createRadialGradient(
+      player.x - player.r * 0.35,
+      player.y - player.r * 0.35,
+      player.r * 0.15,
+      player.x, player.y, player.r
+    );
+    grad.addColorStop(0, '#d8f6ff');
+    grad.addColorStop(0.45, '#4fc3f7');
+    grad.addColorStop(1, '#12558f');
+
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(190, 240, 255, 0.9)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(player.x - player.r * 0.32, player.y - player.r * 0.35, player.r * 0.24, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.fill();
+
+    if (shieldTimer > 0) {
+      const t = performance.now() / 150;
+      const pulse = 0.65 + Math.sin(t) * 0.2;
+      const ringR = player.r + 9 + Math.sin(t) * 1.5;
+
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 212, 121, ' + pulse + ')';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, ringR + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 212, 121, ' + (pulse * 0.35) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      for (let i = 0; i < 6; i++) {
+        const a = t * 0.4 + (i / 6) * Math.PI * 2;
+        const px = player.x + Math.cos(a) * ringR;
+        const py = player.y + Math.sin(a) * ringR;
+        ctx.beginPath();
+        ctx.arc(px, py, 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 235, 170, ' + (pulse * 0.8) + ')';
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  /* =========================================================
+     HUD + ИНВЕНТАРЬ
+     ========================================================= */
+  function updateHud() {
+    const hp = player ? Math.max(0, player.hp) : 0;
+    const pct = (hp / PLAYER_MAX_HP) * 100;
+
+    hpFill.style.width = pct + '%';
+    hpFill.style.background =
+      pct > 60 ? 'linear-gradient(90deg, #37d67a, #7ef0a8)' :
+      pct > 30 ? 'linear-gradient(90deg, #f5a623, #ffd479)' :
+                 'linear-gradient(90deg, #e53935, #ff7b72)';
+
+    hpText.textContent = Math.round(hp);
+    timeText.textContent = formatTime(elapsed);
+    bombText.textContent = bombs.length + ' / ' + MAX_BOMBS;
+  }
+
+  function renderInventory() {
+    for (const type of ['heal', 'destroy', 'slow', 'shield']) {
+      const el = invEls[type];
+      if (!el) continue;
+
+      const count = charges[type];
+      el.root.classList.toggle('has', count > 0);
+
+      const countStr = String(count);
+      if (el.count.textContent !== countStr) {
+        el.count.textContent = countStr;
+      }
+
+      let activeTime = 0;
+      if (type === 'slow')   activeTime = slowTimer;
+      if (type === 'shield') activeTime = shieldTimer;
+
+      if (activeTime > 0) {
+        el.root.classList.add('active-effect');
+        const t = activeTime.toFixed(1) + 'с';
+        if (el.timer.textContent !== t) el.timer.textContent = t;
+      } else {
+        el.root.classList.remove('active-effect');
+        if (el.timer.textContent !== '') el.timer.textContent = '';
+      }
+    }
+  }
+
+  /* =========================================================
+     ИГРОВОЙ ЦИКЛ
+     ========================================================= */
+  function loop(ts) {
+    rafId = requestAnimationFrame(loop);
+
+    if (!lastTs) lastTs = ts;
+    let dt = (ts - lastTs) / 1000;
+    lastTs = ts;
+
+    if (dt > 0.05) dt = 0.05;
+    if (dt < 0) dt = 0;
+
+    update(dt);
+    render();
+  }
+
+  /* =========================================================
+     ПАУЗА / МЕНЮ
+     ========================================================= */
+  function togglePause() {
+    if (state === 'playing') {
+      state = 'paused';
+      pauseBtn.textContent = 'Продолжить';
+      showOverlay('pause');
+    } else if (state === 'paused') {
+      state = 'playing';
+      pauseBtn.textContent = 'Пауза';
+      showOverlay(null);
+      lastTs = 0;
+    }
+  }
+
+  function toMenu() {
+    state = 'menu';
+    player = null;
+    bombs = [];
+    items = [];
+    particles = [];
+    elapsed = 0;
+    invuln = 0;
+    hitFlash = 0;
+    destroyFlash = 0;
+    slowTimer = 0;
+    shieldTimer = 0;
+    charges = { heal: 0, destroy: 0, slow: 0, shield: 0 };
+    pauseBtn.disabled = true;
+    pauseBtn.textContent = 'Пауза';
+    updateHud();
+    renderInventory();
+    showOverlay('menu');
+  }
+
+  /* =========================================================
+     УПРАВЛЕНИЕ
+     ========================================================= */
+  window.addEventListener('keydown', function (e) {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+      e.preventDefault();
+    }
+
+    if (e.code === 'Escape') {
+      if (state === 'playing' || state === 'paused') togglePause();
+      return;
+    }
+
+    if (!e.repeat) {
+      if (e.code === 'Space') { useCharge('destroy'); return; }
+      if (e.code === 'KeyH')  { useCharge('heal');    return; }
+      if (e.code === 'KeyG')  { useCharge('slow');    return; }
+      if (e.code === 'KeyJ')  { useCharge('shield');  return; }
+    } else {
+      if (['Space', 'KeyH', 'KeyG', 'KeyJ'].includes(e.code)) return;
+    }
+
+    keys[e.code] = true;
+  });
+
+  window.addEventListener('keyup', function (e) {
+    keys[e.code] = false;
+  });
+
+  window.addEventListener('blur', function () {
+    for (const k in keys) keys[k] = false;
+    if (state === 'playing') togglePause();
+  });
+
+  /* =========================================================
+     КЛИКИ ПО ИНВЕНТАРЮ
+     ========================================================= */
+  for (const type of ['heal', 'destroy', 'slow', 'shield']) {
+    const el = invEls[type];
+    if (!el) continue;
+    el.root.addEventListener('click', function () {
+      useCharge(type);
+    });
+  }
+
+  /* =========================================================
+     КНОПКИ
+     ========================================================= */
+  document.getElementById('btnStart').addEventListener('click', startGame);
+  document.getElementById('btnRestart').addEventListener('click', startGame);
+  document.getElementById('btnSettings').addEventListener('click', function () { showOverlay('settings'); });
+  document.getElementById('btnSettingsBack').addEventListener('click', function () { showOverlay('menu'); });
+  document.getElementById('btnStatsBack').addEventListener('click', function () { showOverlay('menu'); });
+  document.getElementById('btnGameoverMenu').addEventListener('click', toMenu);
+  document.getElementById('btnResume').addEventListener('click', togglePause);
+  document.getElementById('btnPauseExit').addEventListener('click', toMenu);
+  pauseBtn.addEventListener('click', togglePause);
+
+  document.getElementById('btnStats').addEventListener('click', function () {
+    renderStats();
+    showOverlay('stats');
+  });
+
+  document.getElementById('btnStatsReset').addEventListener('click', function () {
+    stats = Object.assign({}, DEFAULT_STATS);
+    save(LS_STATS, stats);
+    renderStats();
+  });
+
+  /* =========================================================
+     СТАТИСТИКА
+     ========================================================= */
+  function renderStats() {
+    const grid = document.getElementById('statsGrid');
+    grid.innerHTML =
+      '<div>Игр сыграно</div><div>' + stats.games + '</div>' +
+      '<div>Лучшее время</div><div>' + formatTime(stats.bestTime) + '</div>' +
+      '<div>Общее время в игре</div><div>' + formatTime(stats.totalTime) + '</div>' +
+      '<div>Максимум бомб на поле</div><div>' + stats.maxBombs + '</div>' +
+      '<div>Всего создано бомб</div><div>' + stats.bombsSpawned + '</div>' +
+      '<div>Уничтожено бомб вручную</div><div>' + (stats.bombsDestroyed || 0) + '</div>' +
+      '<div>Собрано айтемов</div><div>' + (stats.itemsCollected || 0) + '</div>';
+  }
+
+  /* =========================================================
+     НАСТРОЙКИ
+     ========================================================= */
+  const setPlayerSpeed = document.getElementById('setPlayerSpeed');
+  const setBombSpeed   = document.getElementById('setBombSpeed');
+  const setDamage      = document.getElementById('setDamage');
+
+  const valPlayerSpeed = document.getElementById('valPlayerSpeed');
+  const valBombSpeed   = document.getElementById('valBombSpeed');
+  const valDamage      = document.getElementById('valDamage');
+
+  function initSettingsUI() {
+    setPlayerSpeed.value = settings.playerSpeed;
+    setBombSpeed.value   = settings.bombSpeed;
+    setDamage.value      = settings.damage;
+
+    valPlayerSpeed.textContent = settings.playerSpeed;
+    valBombSpeed.textContent   = settings.bombSpeed;
+    valDamage.textContent      = settings.damage;
+  }
+
+  setPlayerSpeed.addEventListener('input', function () {
+    settings.playerSpeed = parseFloat(this.value);
+    valPlayerSpeed.textContent = settings.playerSpeed;
+    save(LS_SETTINGS, settings);
+  });
+
+  setBombSpeed.addEventListener('input', function () {
+    settings.bombSpeed = parseFloat(this.value);
+    valBombSpeed.textContent = settings.bombSpeed;
+    save(LS_SETTINGS, settings);
+  });
+
+  setDamage.addEventListener('input', function () {
+    settings.damage = parseInt(this.value, 10);
+    valDamage.textContent = settings.damage;
+    save(LS_SETTINGS, settings);
+  });
+
+  /* =========================================================
+     ИНИЦИАЛИЗАЦИЯ
+     ========================================================= */
+  initSettingsUI();
+  renderStats();
+  updateHud();
+  renderInventory();
+  showOverlay('menu');
+
+  rafId = requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
